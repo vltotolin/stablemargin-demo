@@ -1,49 +1,50 @@
+/* StableMargin 2.1 — pure computation test suite. Run: node --test core.test.js */
 'use strict';
-const test=require('node:test');const assert=require('node:assert/strict');
-const {evaluate,stressOutcomes,passport,templates}=require('./core.js');
-const p={...templates.cocoa};
-const check=(overrides)=>evaluate({...p,...overrides});
-test('Базовый сценарий какао: 17 контрактов, конечная маржа и резерв',()=>{const r=check({});assert.equal(r.status,'CANDIDATE');assert.equal(r.lots,17);assert.equal(r.coverage,34);assert.equal(r.cashRequired,43082.93);assert.equal(r.scenarioMargin,15205.2);assert.equal(r.maximumLoss,45000)});
-test('Проверка исходной маржи: 60 000 ₽',()=>assert.equal(check({}).baseMargin,60000));
-test('Номинальное покрытие не превышает объём закупки',()=>{const r=check({});assert.ok(r.lots*r.input.lot<=r.input.quantity)});
-test('Строгий предел: нужно 25, доступно 23',()=>{const r=check({minMargin:25000});assert.equal(r.status,'NOT_FEASIBLE');assert.equal(r.necessaryLots,25);assert.equal(r.affordableLots,23);assert.equal(r.lots,0)});
-test('Нет договора: решение блокируется',()=>assert.equal(check({hasDocument:false}).status,'NEED_DATA'));
-test('Неподтверждённый базис: решение блокируется',()=>assert.equal(check({basisChecked:false}).status,'NEED_DATA'));
-test('Неактуальная котировка: решение блокируется',()=>assert.equal(check({quoteFresh:false}).status,'NEED_DATA'));
-test('Непроверенная ликвидность: решение блокируется',()=>assert.equal(check({liquidityChecked:false}).status,'NEED_DATA'));
-test('Лимит на 1 ₽ ниже резерва 17 контрактов: запрет позиции',()=>{const r=check({cashLimit:43081.93});assert.equal(r.status,'NOT_FEASIBLE');assert.equal(r.lots,0)});
-test('Точный резерв 17 контрактов допускает минимальную позицию',()=>{const r=check({cashLimit:43082.93});assert.equal(r.status,'CANDIDATE');assert.equal(r.lots,17)});
-test('Достаточно сохраняется без защиты: NO_HEDGE',()=>assert.equal(check({physicalMove:.05}).status,'NO_HEDGE'));
-test('Падение закупочной цены: NO_HEDGE',()=>assert.equal(check({physicalMove:-.2,futuresMove:-.2}).status,'NO_HEDGE'));
-test('Комиссия превышает результат на лот: нет допустимого решения',()=>assert.equal(check({feePerContract:2000}).status,'NOT_FEASIBLE'));
-test('Неправильное совпадение динамики: хедж экономически не помогает',()=>assert.equal(check({futuresMove:-.1}).status,'NOT_FEASIBLE'));
-test('Слабый рост фьючерса не обеспечивает требуемую защиту',()=>assert.equal(check({futuresMove:.2}).status,'NOT_FEASIBLE'));
-test('Меньше одного лота: нет допустимого решения',()=>assert.equal(check({quantity:5,minMargin:282500}).status,'NOT_FEASIBLE'));
-test('Плановая маржа уже меньше минимальной: отдельный отказ',()=>assert.equal(check({minMargin:70000}).status,'BASELINE_UNVIABLE'));
-test('Отрицательное обеспечение не допускается',()=>assert.equal(check({guarantee:-1}).status,'INPUT_ERROR'));
-test('Нулевая цена закупки не допускается',()=>assert.equal(check({purchasePrice:0}).status,'INPUT_ERROR'));
-test('Потерянное число не допускается',()=>assert.equal(check({quantity:'нет'}).status,'INPUT_ERROR'));
-test('Падение цены ниже нуля не допускается',()=>assert.equal(check({futuresMove:-1.2}).status,'INPUT_ERROR'));
-test('Валютный пример: отдельная логика единиц',()=>{const r=evaluate(templates.cny);assert.equal(r.status,'CANDIDATE');assert.equal(r.lots,33);assert.equal(r.cashRequired,48675);assert.equal(r.scenarioMargin,200183)});
-test('Сценарии сохраняют разницу, равную P&L минус комиссии',()=>{const rows=stressOutcomes(p,17);assert.equal(rows.length,4);for (const x of rows)assert.ok(Math.abs((x.with-x.without)-x.difference)<.001)});
-test('Документ банка: запрещает утверждать реальную передачу',()=>{const r=check({});const x=passport(p,r);assert.equal(x.bankStatus,'НЕ ПЕРЕДАВАЛОСЬ В ВТБ');assert.equal(x.decision.conditionalContracts,17);assert.equal(x.restrictions.length,4)});
-test('Критические ограничения: 500 вариаций не выпускают недопустимые позиции',()=>{
- let seed=101;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/2147483646}
- for(let i=0;i<500;i++){
-  const z={...p,minMargin:Math.round(rand()*80000),cashLimit:Math.round(rand()*150000),feePerContract:Math.round(rand()*300),
-  physicalMove:Math.round(rand()*50)/100, futuresMove:Math.round((rand()*.65-.15)*100)/100,
-  hasDocument:rand()>.12,basisChecked:rand()>.12,quoteFresh:rand()>.12,liquidityChecked:rand()>.12};
-  const r=evaluate(z);
-  if(r.status==='CANDIDATE'){
-   assert.ok(r.cashRequired<=z.cashLimit+.011,'cash check #'+i);assert.ok(r.residualLoss<=r.maximumLoss+.011,'risk #'+i);
-   assert.ok(r.lots<=r.fullLots,'lot #'+i);
-   assert.ok(z.hasDocument&&z.basisChecked&&z.quoteFresh&&z.liquidityChecked,'evidence #'+i);
-  }
- }
-});
-
-test('Пустые числовые поля не превращаются в ноль',()=>{
- assert.equal(check({revenue:''}).status,'INPUT_ERROR');
- assert.equal(check({feePerContract:' '}).status,'INPUT_ERROR');
- assert.equal(check({otherCosts:null}).status,'INPUT_ERROR');
-});
+const {test}=require('node:test');const assert=require('node:assert/strict');
+const C=require('./core.js');
+const init=()=>({...C.templates.cocoa});
+function close(a,b,eps=1e-7){assert.ok(Math.abs(a-b)<=eps,`${a} != ${b}`)}
+test('demonstration metadata never promises trading or a feed',()=>{assert.equal(C.META.tradeExecution,false);assert.equal(C.META.marketData,'MANUAL')});
+test('cocoa baseline and loss are calculated correctly',()=>{let r=C.evaluate(init());close(r.economics.baseMargin,60000);close(r.economics.priceLoss,67500);close(r.economics.allowedDeterioration,45000)});
+test('cocoa 17 lots, margin and reserve',()=>{let r=C.evaluate(init());assert.equal(r.status,'SCENARIO');assert.equal(r.proposedLots,17);close(r.selected.targetMargin,15205.2);close(r.selected.reserve,43082.93)});
+test('at 500kg, 50 lots are required for 100% nominal coverage',()=>{let r=C.evaluate(init());assert.equal(r.economics.maxLots,50);assert.equal(r.strategies.find(x=>x.id==='full').coverage,100)});
+test('strict target cannot be satisfied under budget',()=>{let r=C.evaluate(C.templates.cocoaStrict);assert.equal(r.status,'UNAVAILABLE');assert.equal(r.economics.requiredLots,25);assert.equal(r.economics.affordableLots,23);assert.equal(r.proposedLots,0)});
+test('no verified price relation blocks',()=>{let r=C.evaluate(C.templates.cocoaBasis);assert.equal(r.status,'NEED_DATA');assert.equal(r.proposedLots,0)});
+test('expiry before procurement blocks proposed hedge',()=>{let p=init();p.daysToExpiry=10;assert.equal(C.evaluate(p).status,'UNAVAILABLE');assert.equal(C.evaluate(p).proposedLots,0)});
+test('negative timing rejected',()=>{let p=init();p.daysToPurchase=-2;assert.equal(C.evaluate(p).status,'INPUT_ERROR')});
+test('no purchase document blocks',()=>{let p=init();p.hasDocument=false;assert.equal(C.evaluate(p).status,'NEED_DATA')});
+test('stale prices block',()=>{let p=init();p.quoteFresh=false;assert.equal(C.evaluate(p).status,'NEED_DATA')});
+test('liquidity not checked blocks',()=>{let p=init();p.liquidityChecked=false;assert.equal(C.evaluate(p).status,'NEED_DATA')});
+test('negative baseline margin violates customer floor',()=>{let p=init();p.minMargin=70000;assert.equal(C.evaluate(p).status,'UNVIABLE')});
+test('no stress loss calls for no hedge',()=>{let p=init();p.physicalMove=.03;assert.equal(C.evaluate(p).status,'NO_HEDGE')});
+test('zero futures rise cannot offset a price increase',()=>{let p=init();p.futuresMove=0;assert.equal(C.evaluate(p).status,'UNAVAILABLE')});
+test('negative hedge effectiveness blocks a position',()=>{let p=init();p.futuresMove=-.2;assert.equal(C.evaluate(p).status,'UNAVAILABLE')});
+test('a lot bigger than purchase is not feasible',()=>{let p=init();p.lot=600;assert.equal(C.evaluate(p).status,'UNAVAILABLE')});
+test('zero cash prevents hedge',()=>{let p=init();p.cashLimit=0;assert.equal(C.evaluate(p).status,'UNAVAILABLE')});
+test('integer one-unit cash boundary behaves predictably',()=>{let p=init();p.cashLimit=43082.93;assert.equal(C.evaluate(p).proposedLots,17);p.cashLimit=43082.92;assert.equal(C.evaluate(p).status,'UNAVAILABLE')});
+test('zero or missing quantities are rejected',()=>{let p=init();p.quantity=0;assert.equal(C.evaluate(p).status,'INPUT_ERROR');p.quantity='';assert.equal(C.evaluate(p).status,'INPUT_ERROR')});
+test('empty numeric inputs never cast to zero',()=>{let p=init();p.revenue='';assert.equal(C.evaluate(p).status,'INPUT_ERROR');p.revenue=null;assert.equal(C.evaluate(p).status,'INPUT_ERROR')});
+test('out-of-range percent is invalid',()=>{let p=init();p.physicalMove=-1.01;assert.equal(C.evaluate(p).status,'INPUT_ERROR');p.physicalMove=2.1;assert.equal(C.evaluate(p).status,'INPUT_ERROR')});
+test('negative fees are invalid',()=>{let p=init();p.feePerContract=-2;assert.equal(C.evaluate(p).status,'INPUT_ERROR')});
+test('future move never assumed to happen',()=>{let r=C.evaluate(init());assert.equal(r.meta.valuation,'scenarios-not-forecasts');assert.equal(r.selected.passed,2);assert.equal(r.selected.total,5)});
+test('weaker futures response fails floor in cocoa case',()=>{let r=C.evaluate(init());assert.equal(r.scenarios.find(s=>s.id==='weak').minMarginMet,false)});
+test('opposite price change may harm hedge',()=>{let r=C.evaluate(init());assert.ok(r.scenarios.find(s=>s.id==='divergence').hedged<r.scenarios.find(s=>s.id==='divergence').unhedged)});
+test('stress table return is the exact settlement proxy less costs',()=>{let p=init(),s=C.scenarioResult(p,17,{id:'a',physicalMove:.3,futuresMove:.2});close(s.hedged,s.unhedged+s.futuresPnl-s.fees)});
+test('scenario rows maintain five different risk illustrations',()=>{let r=C.evaluate(init());assert.equal(r.scenarios.length,5);assert.equal(new Set(r.scenarios.map(s=>s.id)).size,5)});
+test('sensitivity matrix generates 25 cells',()=>{let grid=C.sensitivityGrid(init(),17);assert.equal(grid.length,5);assert.ok(grid.every(row=>row.cells.length===5))});
+test('required futures growth meets threshold within a tolerance',()=>{let p=init(),n=17,needed=C.requiredFuturesMove(p,n);let s=C.scenarioResult(p,n,{id:'x',physicalMove:p.physicalMove,futuresMove:needed});close(s.hedged,p.minMargin,0.01)});
+test('nominal coverage never exceeds one purchase if position came from evaluate',()=>{let p=init();let r=C.evaluate(p);assert.ok(r.selected.coverage<=100)});
+test('CNY template remains conditional, not an exchange specification',()=>{let r=C.evaluate(C.templates.cny);assert.equal(r.proposedLots,33);assert.match(C.templates.cny.reference,/учебн/)});
+test('coffee template is blocked without checks',()=>{let r=C.evaluate(C.templates.coffee);assert.equal(r.status,'NEED_DATA')});
+test('all alternatives have deterministic costs and scenario count',()=>{let r=C.evaluate(init());assert.ok(r.strategies.length>=3);for(let s of r.strategies){assert.ok(s.reserve>=0);assert.equal(s.passed+s.scenarioRows.filter(row=>!row.minMarginMet).length,5)}});
+test('higher customer minimum margin never reduces needed lots',()=>{let a=init(),b=init();b.minMargin=20000;assert.ok(C.evaluate(b).economics.requiredLots>=C.evaluate(a).economics.requiredLots)});
+test('increase in fees does not decrease cash required per lot',()=>{let a=init(),b=init();b.feePerContract=99;assert.ok(C.evaluate(b).economics.perLotReserve>C.evaluate(a).economics.perLotReserve)});
+test('increase in buffer does not increase the number of affordable contracts',()=>{let a=init(),b=init();b.stressDrawdownPerUnit=100;assert.ok(C.evaluate(b).economics.affordableLots<=C.evaluate(a).economics.affordableLots)});
+test('commodity + currency decomposition recombines exactly',()=>{let r=C.coffeeDecomposition();assert.equal(r.ok,true);close(r.commodity+r.currency,r.delta,.02);close(r.start,429232.88);close(r.end,422815.64)});
+test('coffee blank parameter rejected',()=>{let r=C.coffeeDecomposition({kg:'',usdStart:10,usdEnd:9,fxStart:80,fxEnd:85});assert.equal(r.ok,false)});
+test('passport explicitly states bank did not receive data',()=>{let p=init(),r=C.evaluate(p),d=C.passport(p,r);assert.equal(d.bankStatus,'НЕ ПЕРЕДАВАЛОСЬ В БАНК');assert.ok(d.validation.every(x=>x.independentlyVerified===false))});
+test('no passport for invalid input',()=>{let p=init();p.purchasePrice='';assert.equal(C.passport(p,C.evaluate(p)),null)});
+test('scenario hold-to-customer minimum is a risk metric, not realized profit',()=>{let r=C.evaluate(init());assert.equal(r.meta.tradeExecution,false);assert.equal(r.status,'SCENARIO')});
+// Deterministic additional cross-property cases, not independent market verification.
+test('500 varied constraint combinations respect position and reserve limits',()=>{let p=init();let a=0;for(let i=0;i<500;i++){
+ const q={...p,minMargin:i%10*1700,cashLimit:(i%23)*4700,feePerContract:i%11*7,physicalMove:.15+(i%7)*.04,futuresMove:.12+(i%9)*.03};const r=C.evaluate(q);assert.ok(r.valid);assert.ok(r.proposedLots>=0);assert.ok(r.selected.reserve<=q.cashLimit+1e-6);assert.ok(r.proposedLots<=r.economics.maxLots);if(r.status==='SCENARIO')assert.ok(r.selected.targetMargin>=q.minMargin-1e-6);a++}assert.equal(a,500)});
