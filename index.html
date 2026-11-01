@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#182d48">
+  <title>StableMargin | Прототип управления рисками закупок</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="width nav">
+    <div class="brand"><div class="brand-mark"><span></span><span></span><span></span></div><div>StableMargin <small>Управление рисками закупок</small></div></div>
+    <div class="nav-right"><span class="top-pill">ДЕМОНСТРАЦИЯ</span><span>Демо-версия v1.0</span></div>
+  </div>
+</header>
+<main class="width">
+  <section class="intro">
+    <div><div class="eyebrow">АКАДЕМИЯ ФИНТЕХА ВТБ · КОМАНДА «ДИХОТОМИЯ»</div><h1>От будущей закупки <span>к обоснованному решению</span></h1>
+      <p>Оцените возможное удорожание партии, проверьте денежные ограничения и получите объяснение, стоит ли рассматривать биржевую защиту.</p>
+    </div>
+    <div class="intro-aside"><strong>01 / Решение без исполнения</strong><p>Все сведения являются учебными. Сервис не получает биржевые котировки, не подключён к брокеру и не открывает позиции.</p></div>
+  </section>
+  <section class="case-section" aria-label="Демонстрационные закупки">
+    <div class="section-head"><h2>Выберите пример закупки</h2><span>Данные можно менять вручную</span></div>
+    <div class="cases" id="presets">
+      <button type="button" class="case active" data-preset="cocoa"><span>01</span><b>Какао</b><small>Частичная защита</small></button>
+      <button type="button" class="case" data-preset="cocoaStrict"><span>02</span><b>Строгий лимит</b><small>Защита недоступна</small></button>
+      <button type="button" class="case" data-preset="cocoaBasis"><span>03</span><b>Нет связи цен</b><small>Решение блокируется</small></button>
+      <button type="button" class="case" data-preset="cny"><span>04</span><b>Импорт за юани</b><small>Валютный риск</small></button>
+    </div>
+  </section>
+  <div class="workspace">
+    <section class="panel inputs" aria-label="Параметры закупки">
+      <div class="panel-head"><div><div class="eyebrow">ШАГ 1</div><h2>Параметры закупки</h2></div><button id="reset" type="button" class="subtle-button">Вернуть пример</button></div>
+      <div class="form-grid">
+        <label class="wide">Наименование закупки <input type="text" data-field="product" id="product" maxlength="90"></label>
+        <label>Объём <span class="unit" id="quantityUnit">кг</span><input type="number" min="0.01" step="any" data-field="quantity"></label>
+        <label>Цена за единицу, ₽<input type="number" min="0.01" step="any" data-field="purchasePrice"></label>
+        <label>Выручка партии, ₽<input type="number" min="0" step="any" data-field="revenue"></label>
+        <label>Прочие затраты, ₽<input type="number" min="0" step="any" data-field="otherCosts"></label>
+        <label>Минимально допустимая маржа, ₽<input type="number" min="0" step="any" data-field="minMargin"></label>
+        <label>Лимит средств под защиту, ₽<input type="number" min="0" step="any" data-field="cashLimit"></label>
+      </div>
+      <div class="group-title"><h3>Инструмент и сценарий</h3><span>Вводятся самостоятельно</span></div>
+      <div class="form-grid">
+        <label>Цена фьючерса, ₽/ед.<input type="number" step="any" min="0" data-field="futuresPrice"></label>
+        <label>Размер лота <span id="lotUnit">кг</span><input type="number" step="any" min="0" data-field="lot"></label>
+        <label>ГО на контракт, ₽<input type="number" step="any" min="0" data-field="guarantee"></label>
+        <label>Стрессовое списание, ₽/ед.<input type="number" step="any" min="0" data-field="stressDrawdownPerUnit"></label>
+        <label>Издержки полного цикла, ₽/контракт<input type="number" step="any" min="0" data-field="feePerContract"></label>
+        <label>Рост цены закупки, %<input type="number" step="any" min="-100" max="200" data-percent="physicalMove"></label>
+        <label>Изменение фьючерса, %<input type="number" step="any" min="-100" max="200" data-percent="futuresMove"></label>
+      </div>
+      <div class="group-title"><h3>Проверки пригодности</h3><span>Учебные переключатели</span></div>
+      <div class="checks">
+        <label><input type="checkbox" data-check="hasDocument"><span>Закупка подтверждена документом</span></label>
+        <label><input type="checkbox" data-check="basisChecked"><span>Связь цены поставщика с контрактом подтверждена</span></label>
+        <label><input type="checkbox" data-check="quoteFresh"><span>Котировка проверена на актуальность</span></label>
+        <label><input type="checkbox" data-check="liquidityChecked"><span>Ликвидность контракта проверена</span></label>
+      </div>
+      <div class="footnote-input">Все отмеченные проверки являются <b>условиями демонстрации</b>, а не выполненной верификацией рынка. В реальном внедрении переключатели заменяются проверками по документам и данным биржи.</div>
+    </section>
+    <section class="results" aria-label="Результат расчёта" aria-live="polite">
+      <div class="panel decision-panel"><div class="panel-head"><div><div class="eyebrow">ШАГ 2</div><h2>Результат оценки</h2></div><span id="statusCode" class="status-code">РАСЧЁТ</span></div>
+        <div class="verdict"><div class="verdict-dot" id="verdictDot"></div><div><h3 id="decisionTitle">—</h3><p id="decisionReason">—</p></div></div>
+        <div class="kpis"><div><span>Число контрактов</span><strong id="lotsVal">—</strong><small id="coverageVal">—</small></div>
+          <div><span>Результат партии в сценарии</span><strong id="marginVal">—</strong><small id="marginNote">после издержек</small></div>
+          <div><span>Резерв под позицию</span><strong id="cashVal">—</strong><small id="cashNote">ГО + стресс + издержки</small></div></div>
+        <div class="explainer" id="explainBox"></div>
+        <div class="actions"><button type="button" class="primary" id="exportJson">Скачать паспорт решения</button><button type="button" class="secondary" id="exportCsv">Выгрузить сценарии CSV</button></div>
+      </div>
+      <div class="panel scenario-panel"><div class="panel-head"><div><div class="eyebrow">ШАГ 3</div><h2>Проверка уязвимости решения</h2></div></div>
+        <p class="helper">Что произойдёт, если биржевой инструмент будет меняться иначе, чем цена закупки? Сравнение не является прогнозом.</p>
+        <div class="table-scroll"><table><thead><tr><th>Сценарий</th><th>Без защиты</th><th>С позицией</th><th>Разница</th></tr></thead><tbody id="scenarios"></tbody></table></div>
+        <p id="scenarioFoot" class="table-note">—</p>
+      </div>
+      <div class="panel steps-panel"><div class="panel-head"><div><div class="eyebrow">МЕТОДИКА</div><h2>Из чего складывается решение</h2></div></div><div id="mathSteps" class="math-steps"></div></div>
+    </section>
+  </div>
+  <section class="coffee-section panel" aria-label="Демонстрация совместного влияния кофе и курса">
+    <div class="coffee-intro"><div><div class="eyebrow">ОТДЕЛЬНЫЙ АНАЛИТИЧЕСКИЙ МОДУЛЬ</div><h2>Почему снижения цены сырья недостаточно</h2><p>Кофе закупается в долларах, поэтому рублёвая стоимость партии зависит от двух факторов. Сопоставлены две исторические даты из исследовательской базы команды.</p></div><span class="tag">Без торговой рекомендации</span></div>
+    <div class="coffee-numbers" id="coffeeResult"></div>
+    <p class="table-note">Прайсы «Гринкоф»: 20.07 и 09.10.2026. Валютные курсы: Банк России. Результат является пересчётом долларовых прайсов по официальным курсам, а не подтверждённой фактической рублёвой закупкой. До двойного хеджа необходимо проверить механизм расчётов товарного контракта.</p>
+  </section>
+  <footer><div>StableMargin · «Дихотомия» · Экспериментальная версия</div><div>Работает офлайн · Не хранит клиентские данные · Не исполняет сделки</div></footer>
+</main>
+<script src="core.js"></script><script src="app.js"></script>
+</body></html>
